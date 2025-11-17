@@ -15,8 +15,9 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, accuracy_score
 
 # --- NLTK Verilerini İndirme (İlk kez çalıştırırken gereklidir) ---
-# nltk.download('punkt')
-# nltk.download('stopwords')
+nltk.download('punkt')
+nltk.download('punkt_tab')
+nltk.download('stopwords')
 
 # --- 1. Veri Setini Yükleme ---
 # CSV dosyanızın adını 'dataset.csv' olarak varsayıyoruz.
@@ -91,41 +92,43 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random
 
 
 # --- 4. MODEL PİPELINE (SVM-RFE + RF) ---
+# -------------------- BU YENİ KODU EKLEYİN --------------------
 
-print("Model eğitimi başlıyor (SVM-RFE + RF)...")
+# Gerekli kütüphaneleri import edin (kodun en başına da ekleyebilirsiniz)
+from sklearn.feature_selection import SelectKBest, chi2
 
-# 4.1. Öznitelik Seçimi: SVM-RFE
-# RFE'nin temel alacağı tahminci (estimator) olarak lineer bir SVM kullanıyoruz
-svc_estimator = SVC(kernel="linear")
+print("Model eğitimi başlıyor (SelectKBest + RF)...")
 
-# RFE'yi başlatıyoruz.
-# n_features_to_select: 2000 özellikten en iyi kaç tanesini seçeceğiz?
-# Bu, ayarlanması gereken önemli bir hiperparametredir. 300 ile başlayalım.
-rfe = RFE(estimator=svc_estimator, n_features_to_select=300, step=1)
+# 4.1. Öznitelik Seçimi: SelectKBest (chi2 testi ile)
+# k=300, en iyi 300 özniteliği seçeceğimizi belirtir (RFE'deki n_features_to_select gibi)
+print(f"SelectKBest (chi2) ile {X_train.shape[1]} öznitelikten en iyi 300 tanesi seçiliyor...")
 
-print(f"SVM-RFE ile {X_train.shape[1]} öznitelikten en iyi 300 tanesi seçiliyor...")
-# RFE'yi EĞİTİM VERİSİNE uygula
-X_train_rfe = rfe.fit_transform(X_train, y_train)
+kbest = SelectKBest(score_func=chi2, k=300)
+
+# kbest'i EĞİTİM VERİSİNE uygula
+X_train_kbest = kbest.fit_transform(X_train, y_train)
 
 # TEST VERİSİNİ de aynı seçilen özelliklere göre dönüştür
-X_test_rfe = rfe.transform(X_test)
+X_test_kbest = kbest.transform(X_test)
 
-print(f"Öznitelik seçimi sonrası yeni boyut: {X_train_rfe.shape}")
+print(f"Öznitelik seçimi sonrası yeni boyut: {X_train_kbest.shape}")
 print("-" * 30)
 
 
 # 4.2. Sınıflandırma: Random Forest (RF)
-# RF modelini, RFE tarafından seçilen öznitelikler üzerinde eğiteceğiz
 rf_classifier = RandomForestClassifier(n_estimators=100, random_state=42, class_weight='balanced')
 
 print("Random Forest modeli seçilen öznitelikler üzerinde eğitiliyor...")
-rf_classifier.fit(X_train_rfe, y_train)
+# !!! Değişken adlarına dikkat: X_train_kbest kullanıyoruz
+rf_classifier.fit(X_train_kbest, y_train)
 
 
 # --- 5. DEĞERLENDİRME ---
-
 print("Model test verisi üzerinde değerlendiriliyor...")
-y_pred = rf_classifier.predict(X_test_rfe)
+# !!! Değişken adlarına dikkat: X_test_kbest kullanıyoruz
+y_pred = rf_classifier.predict(X_test_kbest)
+
+# -------------------- YENİ KOD BURADA BİTİYOR --------------------
 
 # Metrikleri (Kesinlik, Duyarlılık, F1-Skoru) yazdır
 report = classification_report(y_test, y_pred, target_names=encoder.classes_)
